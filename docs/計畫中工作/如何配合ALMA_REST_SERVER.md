@@ -5,11 +5,13 @@
 
 ## 目的
 
-AffectBridge 把 LLM（透過 pgEdge）當聲帶、玩家訊息當輸入，但**角色的心理狀態本身**由外部的 ALMA REST server 持有與運算。
+AffectBridge 把 LLM（透過 pgEdge）當語意理解與表達層、玩家訊息當輸入，但**角色的情緒狀態本身**由 ALMA REST server 持有與運算。
+
+ALMA 是 **AffectBridge 的內部情緒運算依賴**，不是玩家或遊戲客戶端的 API。玩家只會呼叫 AffectBridge 公開的角色互動 API；何時呼叫 ALMA、送什麼 payload、如何處理 ALMA 回應，全部由 AffectBridge 內部決定。
 
 ```
-                    Player
-                       │  text
+              Player / Game Client
+                       │  AffectBridge public API
                        ▼
               ┌────────────────┐
               │  AffectBridge  │
@@ -22,8 +24,8 @@ AffectBridge 把 LLM（透過 pgEdge）當聲帶、玩家訊息當輸入，但**
                        │  HTTP / REST
                        ▼
               ┌────────────────┐
-              │  ALMA REST     │  ← external: KuangWei-hash/ALMA
-              │  Server        │     runs on localhost:8081
+              │  ALMA REST     │  ← private internal dependency
+              │  Server        │     loopback / private network only
               │                │     Java + AffectManager
               └────────────────┘
                        │
@@ -33,13 +35,14 @@ AffectBridge 把 LLM（透過 pgEdge）當聲帶、玩家訊息當輸入，但**
 ```
 
 關鍵邊界：
-- **ALMA 是 single source of truth**。所有 mood、emotion、decay 都在它內部。
-- **AffectBridge 不再保存 affective state**。in-memory repository 只留薄薄一層 character name 對照，不再保存 mood/emotion 欄位。
-- **LLM 不再憑空生出 state**。LLM 收到 ALMA 給的 state 然後表達。
+- **ALMA 是 affective state 的 single source of truth**。所有 mood、emotion、decay 都在它內部。
+- **AffectBridge 不保存第二份可變 affective state**。repository 可保存 AffectBridge character ID、ALMA character name、persona payload、session 與生命週期資訊，但不自己維護 mood/emotion 運算結果。
+- **LLM 不憑空生出 affective state**。LLM 可以解讀事件並產生 appraisal，但最後的 mood/emotion 由 ALMA 運算。
+- **ALMA REST API 永遠不直接暴露給玩家**。AffectBridge 不把 ALMA endpoint 做成一對一 proxy，也不把 ALMA 的 raw payload 或 raw error 當成公開 API contract。
 
-## 我們呼叫的 endpoint
+## AffectBridge 內部呼叫的 ALMA endpoint
 
-完整 endpoint 列表見 `AlmaRestServer.java` 的 `registerHandlers()`。我們這層用到的：
+完整 endpoint 列表見 `AlmaRestServer.java` 的 `registerHandlers()`。以下只是 `internal/affect/alma` adapter 對 ALMA 發出的 outbound HTTP，**不是 AffectBridge 對玩家公開的 endpoint**：
 
 | Method | Path | 用途 |
 |---|---|---|
@@ -47,16 +50,28 @@ AffectBridge 把 LLM（透過 pgEdge）當聲帶、玩家訊息當輸入，但**
 | `POST` | `/characters` | 建立角色（吃完整 persona JSON）|
 | `GET` | `/characters` | 列已建立角色名稱 |
 | `GET` | `/affect/{name}` | 讀單一角色完整 affective state |
-| `GET` | `/affect` | 列所有角色 state |
-| `POST` | `/eec` | 餵 appraisal（外部系統已完成 appraisal）|
-| `POST` | `/pad` | 餵原始 PAD（biosensor-style）|
-| `POST` | `/pause` / `/resume` / `/step` | timer 控制（debug 用）|
+| `GET` | `/affect` | 列所有角色 state（管理／除錯用）|
+| `POST` | `/appraisal` | 送入固定 18-tag 事件類型 + 本次強度，由 ALMA 查角色 rule |
+| `POST` | `/eec` | 送入 AffectBridge 內部已完成的 appraisal |
+| `POST` | `/pad` | 餵原始 PAD（未來特殊內部輸入，v1 不必要）|
+| `POST` | `/pause` / `/resume` / `/step` | timer 控制（僅管理／debug 用）|
 
-不用：`/appraisal`（tag-based 沒彈性）、`/act`、`/emotion-display`、`/mood-display`、`/groups`（v1 不用多角色互動）。
+`/appraisal` 與 `/eec` 都是合法的情緒運算輸入；v1 要使用哪一條路徑，由 `ALMA翻譯系統.md` 的設計決定。同一事件不可重複送入兩條路徑。
+
+目前不用：`/act`、`/emotion-display`、`/mood-display`、`/groups`（v1 不用多角色互動）。
+
+### 玩家 API 與 ALMA API 的界線
+
+- 玩家呼叫的是 AffectBridge 的 `/characters/{id}/chat` 或其他遊戲領域 API。
+- AffectBridge service 根據請求內容判斷是否需要 appraisal、更新或讀取 affective state。
+- 玩家不會提供 ALMA EEC、PAD、decay 或 persona schema。
+- 即使 AffectBridge 未來對外提供 affect snapshot，回傳的也應是 AffectBridge 自己定義的 response DTO，不是 ALMA raw response。
 
 ## 角色建立
 
-`POST /characters` 吃的是完整 persona payload。我們現有的 `assets/persona/Lisa.json` 跟 `William.json` 已經是這個格式，**直接轉送**即可。
+ALMA `POST /characters` 吃的是完整 persona payload。AffectBridge 從受信任的角色設定或 `assets/persona/Lisa.json`、`William.json` 讀取這些資料，再由內部 adapter 送給 ALMA。
+
+**這不是把玩家 request body 直接轉送給 ALMA。** 玩家若能選擇角色，僅能選 AffectBridge 已認識的 character ID，trait、decay、appraisal rules 與 `internal_affect_appraisal` 等 ALMA 底層設定由 server 控制。
 
 來源（從 `handleCreateCharacter` 抓的真實驗證規則）：
 
@@ -80,11 +95,11 @@ response 201：
 }
 ```
 
-`persistent: false` 很重要 — 重啟 ALMA server 角色就消失，client 端要保留建立用 JSON 供重建。
+`persistent: false` 很重要 — 重啟 ALMA server 角色就消失，**AffectBridge** 要保留建立用 JSON 供重建，這是 server 內部的生命週期責任，不交給玩家。
 
 ## 讀 state
 
-`GET /affect/{name}` 回傳：
+ALMA `GET /affect/{name}` 回傳的 raw JSON 僅存在於內部 adapter：
 
 ```json
 {
@@ -112,7 +127,13 @@ response 201：
 
 9 個 mood word：`Exuberant, Bored, Dependent, Disdainful, Relaxed, Anxious, Docile, Hostile, Neutral`。
 
+`internal/affect/alma` 應定義 ALMA wire DTO，然後映射成 AffectBridge 穩定的 `AffectSnapshot` domain model。Controller 不應直接將上面的 raw JSON 回傳給玩家。
+
 ## 餵 appraisal：LLM → EEC
+
+> 本節只描述「直接 EEC」候選路徑，不再代表 v1 已決定只使用 `/eec`。`/appraisal` 與 `/eec` 的選擇、轉譯與 dispatch 規則統一放在 `ALMA翻譯系統.md`。
+
+玩家只提供對話或遊戲行為。AffectBridge 內部的 semantic/appraisal 層先解讀該輸入，再由 ALMA adapter 組成 EEC。玩家不會直接呼叫 `/eec`，也不會看到 EEC wire format。
 
 LLM 透過 `internal/llm.Appraise` 產出（`internal/model/appraisal.go`）：
 
@@ -168,51 +189,57 @@ Elicitor 是 ALMA 用來**關聯同一事件的多個信號**的穩定 ID。
 - **不可為 `"alma internal emotion appraisal"` 或 `"alma internal mood appraisal"`**（reserved，會 422）
 
 我們的策略：
-- 每次 chat message 產生一個：`chat-{uuid}` 或 `chat-{timestamp_ms}-{counter}`
+- 每個需要送入 ALMA 的對話或遊戲事件產生一個：`chat-{uuid}` 或 `event-{uuid}`
 - uuid 36 字元 + prefix 約 50 字元，遠低於 200 上限
-- 同一個 message 的 EEC 與將來的 `EventConfirmed` / `EventDisconfirmed` 必須沿用同一 elicitor
+- 同一個領域事件的 EEC 與將來的 `EventConfirmed` / `EventDisconfirmed` 必須沿用同一 elicitor
+- 若訊息無需改變 affective state，就不產生 EEC，也不因為「玩家送了一則訊息」而強制呼叫 ALMA 更新 API。
 
 ## 錯誤處理
 
 ALMA 會回：
 
-| Code | 意義 | 我們的處理 |
+| Code | 意義 | AffectBridge 內部處理 |
 |---|---|---|
-| 400 | JSON / schema / 組合不對 | 透傳錯誤給 client，log |
-| 404 | character / path 不存在 | 透傳 |
-| 409 | 名稱衝突 / paused 狀態衝突 | 透傳 |
-| 413 | body > 1 MiB | 透傳（理論上 client 不會送這麼大）|
-| 422 | 落入原始核心危險路徑（Love/Hate）| 透傳 + log warn（這代表我們 client-side 預檢漏了）|
-| 500 | ALMA core 失敗 | log error + 透傳 |
+| 400 | AffectBridge 組出的 JSON / schema / EEC 組合不對 | 記錄 ALMA raw error；視為 adapter bug，公開 API 不應回玩家 400 |
+| 404 | ALMA 內沒有該 character | 嘗試依 server 保存的 persona 重建並重試一次；仍失敗則回內部服務錯誤 |
+| 409 | 名稱衝突 / paused 狀態衝突 | 由生命週期或管理邏輯處理，不直接丟給玩家 |
+| 413 | AffectBridge 產生的 body > 1 MiB | 視為 server 內部限制或 bug，log 並轉成內部錯誤 |
+| 422 | 落入原始核心危險路徑（Love/Hate）| log warn/error；代表 adapter-side 預檢漏掉，不將 ALMA 細節暴露給玩家 |
+| 500 / 連線失敗 | ALMA core 失敗或不可用 | log raw error，公開 API 轉成 AffectBridge 的 `502` / `503` 或穩定 domain error |
 
-**重要**：不要在 client 端吞掉 ALMA 錯誤或重新包裝，**透傳**讓 client 知道是什麼問題。
+**重要**：ALMA 是內部依賴，raw status/body 只用於 log 與除錯。AffectBridge 對外只回自己穩定的 error contract，不吞錯誤，也不透傳 ALMA 實作細節。
 
-Client-side 我們有兩個預檢：
+Adapter-side 有兩個預檢：
 1. EEC 8 種合法組合的預檢（在 `internal/affect/alma/client.go` 送之前就 fail，省一次 round trip）
 2. Elicitor 長度 + reserved string 預檢（同上）
 
-預檢失敗直接在我們這層回 400，不要送 ALMA 讓它回 400。
+預檢失敗時不呼叫 ALMA。如果 EEC 是 AffectBridge 自己產生的，失敗代表內部 mapping bug；只有受信任的內部／管理 API 直接接收 appraisal 時，才可能將輸入問題回為 400。
 
 ## Configuration
 
 從 `.env` / `.env.example` 來：
 
 ```bash
-ALMA_ADDR=http://localhost:8081   # REST server base URL
+ALMA_ADDR=http://127.0.0.1:<alma-port>  # private ALMA REST base URL
 ALMA_HOME=/path/to/alma          # optional，informational only
 ```
 
+`ALMA_ADDR` 是 server 部署設定，不得從玩家 request、header 或 query parameter 覆寫。ALMA 應只綁定 loopback 或放在受信任的 private network，不對公網暴露。
+
 `routes.go` 的 wiring 邏輯：
 - `ALMA_ADDR` 設了 → 用 `alma.Client`
-- 沒設 → `affect.NewNoopEngine()`（server 仍能起，但 affect 完全不做事）
+- 明確的開發／測試模式 → 可用 `affect.NewNoopEngine()`
+- production 模式未設 ALMA 或 health check 失敗 → fail fast 或對外回服務不可用，不可靜默退回 noop 使玩家以為情緒運算正常
 
 ## 已知落差 / TODO
 
-- [ ] **EEC 8 種合法組合的 client-side validator** 還沒寫。要在 `internal/affect/alma/` 加一個 `eec.go` 或直接放 `client.go` 裡。
+- [ ] **EEC 8 種合法組合的 adapter-side validator** 還沒寫。要在 `internal/affect/alma/` 加一個 `eec.go` 或直接放 `client.go` 裡。
 - [ ] **LLM Appraisal → EEC 映射函式** 還沒寫。要在 service 層加一個 `mapToEEC(appraisal) EECInput`。
-- [ ] **model 完全重整** 還沒做。現在的 `Character / Mood / Emotion` 跟 ALMA 的 `Affect / Mood / Emotion` 對不上。Mood 缺 `Word / Intensity`，Emotion 從 `map[string]float64` 變 `[]Emotion{...}`，Character 缺 `DominantEmotion / MoodTendency / DefaultMood / AffectComputationPaused`。
-- [ ] **in-memory repository 角色定位** 還沒決定。要嘛移除（ALMA 唯一來源），要嘛只保留 name → payload 對照。
+- [ ] **ALMA wire DTO 與 domain mapper** 還沒做。`internal/affect/alma` 應定義對齊 ALMA JSON 的 `AffectResponse / MoodResponse / EmotionResponse`，再映射為 AffectBridge 穩定的 `AffectSnapshot`；不要讓 ALMA wire schema 直接成為玩家 API model。
+- [ ] **in-memory repository 角色定位**：保留 AffectBridge ID → ALMA name / persona payload / lifecycle metadata 對照，供 ALMA 重啟後重建角色；不保存第二份 mood/emotion state。
 - [ ] **chat pipeline 中表達階段**目前給 LLM 的 prompt 是用我自己組的 `state`，要改成讀 ALMA 回的 `Affect` 結構（含 `Mood.Word`、dominant emotion 等）。
+- [ ] **public API boundary** 還沒收緊。玩家只送對話／遊戲事件；直接提交 appraisal 或讀 raw affect 的 endpoint 僅能是受信任的內部、管理或測試界面。
+- [ ] **configuration 一致性** 還沒做。`.env.example`、`internal/config` 與 ALMA 實際 listen port 必須使用同一個部署設定，不要在多處各自假設不同 port。
 - [ ] **streaming** 還沒接。
 - [ ] **integration test** 還沒寫。要 mock 一個 `pgedgellm.Client` 介面、mock 一個 `alma.Client` 介面，驗 pipeline。
 
@@ -225,12 +252,14 @@ ALMA_HOME=/path/to/alma          # optional，informational only
 
 ## 相關檔案（待改）
 
-- `internal/model/{personality,mood,emotion,character,appraisal}.go` — 完全重整
-- `internal/affect/alma/client.go` — 整個重寫
+- `internal/model/*` — 定義與 ALMA wire format 解耦的穩定 domain model / `AffectSnapshot`
+- `internal/affect/alma/client.go` — 封裝內部 ALMA REST 呼叫、wire DTO、錯誤轉換
+- `internal/affect/alma/mapper.go` — ALMA wire DTO ↔ AffectBridge domain model
+- `ALMA輸出翻譯.md` — `AffectSnapshot` → Final Renderer 所需的情緒 context
 - `internal/affect/alma/engine.go` — 對齊新 client
 - `internal/affect/engine.go` — 介面可能微調
 - `internal/service/*` — 配合新 model
-- `internal/controller/*` — 配合新 model
-- `internal/repository/character_repository.go` — 簡化或移除
+- `internal/controller/*` — 僅暴露 AffectBridge public DTO，不暴露 ALMA raw schema/error
+- `internal/repository/character_repository.go` — 只保存角色身分、persona 與 ALMA 生命週期對照，不保存 affective state 副本
 - `api/routes.go` — wiring
 - `.env.example` — 已有 `ALMA_ADDR` 設定
