@@ -20,8 +20,26 @@ Given an event, return a JSON object with these fields:
 - blameworthiness: float in [0, 1]
 - praiseworthiness: float in [0, 1]
 Return only the JSON object, no commentary.`
+	const schema = `{
+  "type": "object",
+  "properties": {
+    "agency": {"type": "string", "enum": ["self", "other", "none"]},
+    "desirability": {"type": "number", "minimum": -1, "maximum": 1},
+    "unexpectedness": {"type": "number", "minimum": 0, "maximum": 1},
+    "blameworthiness": {"type": "number", "minimum": 0, "maximum": 1},
+    "praiseworthiness": {"type": "number", "minimum": 0, "maximum": 1}
+  },
+  "required": ["agency", "desirability", "unexpectedness", "blameworthiness", "praiseworthiness"],
+  "additionalProperties": false
+}`
 
-	raw, err := client.Complete(ctx, event, WithSystem(system), WithJSONMode())
+	// The configured reasoning effort applies at the client level. A compact
+	// budget is enough for this small structured result when reasoning is off.
+	raw, err := client.Complete(ctx, event,
+		WithSystem(system),
+		WithJSONSchema(schema),
+		WithMaxTokens(512),
+	)
 	if err != nil {
 		return model.Appraisal{}, err
 	}

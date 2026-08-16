@@ -40,6 +40,9 @@ type Config struct {
 	// the cap is reached the limiter returns ErrBusy instead of
 	// queueing. <= 0 disables the limit.
 	LLMMaxConcurrent int
+
+	// Optional OpenAI-compatible reasoning effort (for example "none").
+	LLMReasoningEffort string
 }
 
 type fileConfig struct {
@@ -51,10 +54,11 @@ type fileConfig struct {
 		Port int    `json:"port"`
 	} `json:"alma"`
 	LLM struct {
-		Provider      string `json:"provider"`
-		BaseURL       string `json:"base_url"`
-		Model         string `json:"model"`
-		MaxConcurrent int    `json:"max_concurrent"`
+		Provider        string `json:"provider"`
+		BaseURL         string `json:"base_url"`
+		Model           string `json:"model"`
+		MaxConcurrent   int    `json:"max_concurrent"`
+		ReasoningEffort string `json:"reasoning_effort"`
 	} `json:"llm"`
 }
 
@@ -77,6 +81,7 @@ func LoadFile(path string) (*Config, error) {
 	file.LLM.Provider = strings.TrimSpace(file.LLM.Provider)
 	file.LLM.BaseURL = strings.TrimSpace(file.LLM.BaseURL)
 	file.LLM.Model = strings.TrimSpace(file.LLM.Model)
+	file.LLM.ReasoningEffort = strings.TrimSpace(file.LLM.ReasoningEffort)
 	if file.Server.Port < 1 || file.Server.Port > 65535 {
 		return nil, fmt.Errorf("config: server.port must be between 1 and 65535")
 	}
@@ -114,17 +119,25 @@ func LoadFile(path string) (*Config, error) {
 	if file.LLM.MaxConcurrent < 1 {
 		return nil, fmt.Errorf("config: llm.max_concurrent must be at least 1")
 	}
+	if file.LLM.ReasoningEffort != "" {
+		switch file.LLM.ReasoningEffort {
+		case "none", "minimal", "low", "medium", "high":
+		default:
+			return nil, fmt.Errorf("config: llm.reasoning_effort must be none, minimal, low, medium, or high")
+		}
+	}
 
 	almaAddr := "http://" + net.JoinHostPort(file.ALMA.Host, strconv.Itoa(file.ALMA.Port))
 	llmBaseURL := strings.TrimRight(file.LLM.BaseURL, "/")
 
 	return &Config{
-		Port:             strconv.Itoa(file.Server.Port),
-		ALMAAddr:         almaAddr,
-		LLMProvider:      file.LLM.Provider,
-		LLMAPIKey:        os.Getenv("LLM_API_KEY"),
-		LLMModel:         file.LLM.Model,
-		LLMBaseURL:       llmBaseURL,
-		LLMMaxConcurrent: file.LLM.MaxConcurrent,
+		Port:               strconv.Itoa(file.Server.Port),
+		ALMAAddr:           almaAddr,
+		LLMProvider:        file.LLM.Provider,
+		LLMAPIKey:          os.Getenv("LLM_API_KEY"),
+		LLMModel:           file.LLM.Model,
+		LLMBaseURL:         llmBaseURL,
+		LLMMaxConcurrent:   file.LLM.MaxConcurrent,
+		LLMReasoningEffort: file.LLM.ReasoningEffort,
 	}, nil
 }

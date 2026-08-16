@@ -105,6 +105,11 @@ func TestLoadFileRejectsInvalidSettings(t *testing.T) {
 			content: `{"server":{"port":8080},"alma":{"host":"localhost","port":8081},"llm":{"provider":"openai","base_url":"http://localhost:1234/v1","model":"qwen3-8b","max_concurrent":0}}`,
 			wantErr: "llm.max_concurrent",
 		},
+		{
+			name:    "invalid reasoning effort",
+			content: `{"server":{"port":8080},"alma":{"host":"localhost","port":8081},"llm":{"provider":"openai","base_url":"http://localhost:1234/v1","model":"qwen3-8b","max_concurrent":1,"reasoning_effort":"extreme"}}`,
+			wantErr: "llm.reasoning_effort",
+		},
 	}
 
 	for _, tt := range tests {

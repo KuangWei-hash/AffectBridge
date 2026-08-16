@@ -7,6 +7,7 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 )
 
@@ -28,15 +29,24 @@ type options struct {
 	maxTokens   int
 	system      string
 	jsonMode    bool
+	jsonSchema  json.RawMessage
 }
 
 func WithTemperature(t float64) Option { return func(o *options) { o.temperature = t } }
-func WithMaxTokens(n int) Option      { return func(o *options) { o.maxTokens = n } }
-func WithSystem(s string) Option      { return func(o *options) { o.system = s } }
+func WithMaxTokens(n int) Option       { return func(o *options) { o.maxTokens = n } }
+func WithSystem(s string) Option       { return func(o *options) { o.system = s } }
+
 // WithJSONMode instructs the provider to return a JSON object. The
 // Interpreter (llm.Appraise) uses it. Providers that do not support
 // JSON mode ignore it.
 func WithJSONMode() Option { return func(o *options) { o.jsonMode = true } }
+
+// WithJSONSchema instructs the provider to return an object matching schema.
+// OpenAI-compatible servers that reject the legacy json_object format, such as
+// recent LM Studio versions, can use this structured-output mode instead.
+func WithJSONSchema(schema string) Option {
+	return func(o *options) { o.jsonSchema = json.RawMessage(schema) }
+}
 
 // NewNoopClient returns a client that always returns a placeholder
 // response. It lets the rest of the system boot without an LLM
@@ -52,7 +62,7 @@ func (n *noopClient) Complete(_ context.Context, _ string, opts ...Option) (stri
 	for _, opt := range opts {
 		opt(&o)
 	}
-	if o.jsonMode {
+	if o.jsonMode || len(o.jsonSchema) > 0 {
 		// Return a valid zero Appraisal so the Interpreter pipeline
 		// can still run without a real LLM configured.
 		return `{"agency":"none","desirability":0,"unexpectedness":0,"blameworthiness":0,"praiseworthiness":0}`, nil

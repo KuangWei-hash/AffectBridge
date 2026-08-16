@@ -27,10 +27,12 @@ func main() {
 	mux := api.NewRouter(cfg)
 
 	srv := &http.Server{
-		Addr:         ":" + cfg.Port,
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		Addr:        ":" + cfg.Port,
+		Handler:     mux,
+		ReadTimeout: 10 * time.Second,
+		// Local reasoning models can spend well over 30 seconds on the
+		// appraisal and expression calls in a single chat request.
+		WriteTimeout: 180 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 

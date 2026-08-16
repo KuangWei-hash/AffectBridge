@@ -31,14 +31,20 @@ func NewRouter(cfg *config.Config) *http.ServeMux {
 	//
 	// Wiring: pgEdge client -> Limiter.
 	var llmClient llm.Client
-	primary, err := llm.NewPgEdgeClient(cfg.LLMProvider, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMBaseURL)
+	primary, err := llm.NewPgEdgeClient(
+		cfg.LLMProvider,
+		cfg.LLMAPIKey,
+		cfg.LLMModel,
+		cfg.LLMBaseURL,
+		cfg.LLMReasoningEffort,
+	)
 	if err != nil {
 		log.Printf("llm: pgEdge client init failed: %v; falling back to noop", err)
 		llmClient = llm.NewNoopClient()
 	} else {
 		llmClient = llm.NewLimiter(primary, cfg.LLMMaxConcurrent)
-		log.Printf("llm: provider=%s model=%s base_url=%s max_concurrent=%d",
-			cfg.LLMProvider, cfg.LLMModel, cfg.LLMBaseURL, cfg.LLMMaxConcurrent)
+		log.Printf("llm: provider=%s model=%s base_url=%s max_concurrent=%d reasoning_effort=%s",
+			cfg.LLMProvider, cfg.LLMModel, cfg.LLMBaseURL, cfg.LLMMaxConcurrent, cfg.LLMReasoningEffort)
 	}
 
 	charSvc := service.NewCharacterService(repo)
