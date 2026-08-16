@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -51,8 +52,7 @@ type fileConfig struct {
 	} `json:"alma"`
 	LLM struct {
 		Provider      string `json:"provider"`
-		Host          string `json:"host"`
-		Port          int    `json:"port"`
+		BaseURL       string `json:"base_url"`
 		Model         string `json:"model"`
 		MaxConcurrent int    `json:"max_concurrent"`
 	} `json:"llm"`
@@ -75,7 +75,7 @@ func LoadFile(path string) (*Config, error) {
 
 	file.ALMA.Host = strings.TrimSpace(file.ALMA.Host)
 	file.LLM.Provider = strings.TrimSpace(file.LLM.Provider)
-	file.LLM.Host = strings.TrimSpace(file.LLM.Host)
+	file.LLM.BaseURL = strings.TrimSpace(file.LLM.BaseURL)
 	file.LLM.Model = strings.TrimSpace(file.LLM.Model)
 	if file.Server.Port < 1 || file.Server.Port > 65535 {
 		return nil, fmt.Errorf("config: server.port must be between 1 and 65535")
@@ -92,14 +92,21 @@ func LoadFile(path string) (*Config, error) {
 	if file.LLM.Provider == "" {
 		return nil, fmt.Errorf("config: llm.provider is required")
 	}
-	if file.LLM.Host == "" {
-		return nil, fmt.Errorf("config: llm.host is required")
+	if file.LLM.BaseURL == "" {
+		return nil, fmt.Errorf("config: llm.base_url is required")
 	}
-	if strings.Contains(file.LLM.Host, "://") {
-		return nil, fmt.Errorf("config: llm.host must contain only a hostname or IP address")
+	parsedLLMURL, err := url.Parse(file.LLM.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("config: llm.base_url is invalid: %w", err)
 	}
-	if file.LLM.Port < 1 || file.LLM.Port > 65535 {
-		return nil, fmt.Errorf("config: llm.port must be between 1 and 65535")
+	if parsedLLMURL.Scheme != "http" && parsedLLMURL.Scheme != "https" {
+		return nil, fmt.Errorf("config: llm.base_url scheme must be http or https")
+	}
+	if parsedLLMURL.Hostname() == "" {
+		return nil, fmt.Errorf("config: llm.base_url must include a hostname")
+	}
+	if parsedLLMURL.User != nil || parsedLLMURL.RawQuery != "" || parsedLLMURL.Fragment != "" {
+		return nil, fmt.Errorf("config: llm.base_url must not include credentials, query parameters, or a fragment")
 	}
 	if file.LLM.Model == "" {
 		return nil, fmt.Errorf("config: llm.model is required")
@@ -109,7 +116,7 @@ func LoadFile(path string) (*Config, error) {
 	}
 
 	almaAddr := "http://" + net.JoinHostPort(file.ALMA.Host, strconv.Itoa(file.ALMA.Port))
-	llmBaseURL := "http://" + net.JoinHostPort(file.LLM.Host, strconv.Itoa(file.LLM.Port)) + "/v1"
+	llmBaseURL := strings.TrimRight(file.LLM.BaseURL, "/")
 
 	return &Config{
 		Port:             strconv.Itoa(file.Server.Port),

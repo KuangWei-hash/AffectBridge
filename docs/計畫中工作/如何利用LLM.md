@@ -183,15 +183,14 @@ Game Server ─────┼─→ LLM Gateway #2
 {
   "llm": {
     "provider": "openai",
-    "host": "127.0.0.1",
-    "port": 1234,
+    "base_url": "http://127.0.0.1:1234/v1",
     "model": "deepseek/deepseek-r1-0528-qwen3-8b",
     "max_concurrent": 1
   }
 }
 ```
 
-LM Studio 提供 OpenAI-compatible API，因此 pgEdge provider 使用 `openai`，AffectBridge 會將 host 與 port 組成 `http://127.0.0.1:1234/v1`。LM Studio 本機服務不需要 API key；若未來改接需要認證的遠端 provider，才從環境變數讀取 `LLM_API_KEY`。
+LM Studio 提供 OpenAI-compatible API，因此 pgEdge provider 使用 `openai`。`base_url` 可以指向本機 LM Studio，也可指向 Groq 等使用 HTTPS 的 OpenAI-compatible 服務。LM Studio 本機服務不需要 API key；遠端 provider 的密鑰從環境變數 `LLM_API_KEY` 讀取。
 
 `model` 必須與 LM Studio `/v1/models` 回傳的 ID 一致。目前本機載入的 Qwen3 8B 模型 ID 是 `deepseek/deepseek-r1-0528-qwen3-8b`；若日後更換模型，直接修改此欄位即可。
 

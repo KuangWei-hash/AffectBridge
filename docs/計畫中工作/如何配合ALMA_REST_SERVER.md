@@ -230,8 +230,7 @@ ALMA 連線只使用專案根目錄的 `config.json`：
   },
   "llm": {
     "provider": "openai",
-    "host": "127.0.0.1",
-    "port": 1234,
+    "base_url": "http://127.0.0.1:1234/v1",
     "model": "deepseek/deepseek-r1-0528-qwen3-8b",
     "max_concurrent": 1
   }

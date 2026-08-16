@@ -11,7 +11,7 @@ func TestLoadFileBuildsALMAAddress(t *testing.T) {
 	path := writeConfig(t, `{
   "server": {"port": 8080},
   "alma": {"host": "127.0.0.1", "port": 8081},
-  "llm": {"provider": "openai", "host": "127.0.0.1", "port": 1234, "model": "deepseek/deepseek-r1-0528-qwen3-8b", "max_concurrent": 1}
+  "llm": {"provider": "openai", "base_url": "http://127.0.0.1:1234/v1/", "model": "deepseek/deepseek-r1-0528-qwen3-8b", "max_concurrent": 1}
 }`)
 
 	cfg, err := LoadFile(path)
@@ -36,7 +36,7 @@ func TestLoadFileSupportsHostname(t *testing.T) {
 	path := writeConfig(t, `{
   "server": {"port": 8080},
   "alma": {"host": "localhost", "port": 8081},
-  "llm": {"provider": "openai", "host": "localhost", "port": 1234, "model": "deepseek/deepseek-r1-0528-qwen3-8b", "max_concurrent": 1}
+  "llm": {"provider": "openai", "base_url": "https://api.groq.com/openai/v1", "model": "qwen/qwen3.6-27b", "max_concurrent": 4}
 }`)
 
 	cfg, err := LoadFile(path)
@@ -45,6 +45,12 @@ func TestLoadFileSupportsHostname(t *testing.T) {
 	}
 	if cfg.ALMAAddr != "http://localhost:8081" {
 		t.Fatalf("ALMAAddr = %q, want %q", cfg.ALMAAddr, "http://localhost:8081")
+	}
+	if cfg.LLMBaseURL != "https://api.groq.com/openai/v1" {
+		t.Fatalf("LLMBaseURL = %q, want Groq URL", cfg.LLMBaseURL)
+	}
+	if cfg.LLMModel != "qwen/qwen3.6-27b" {
+		t.Fatalf("LLMModel = %q, want qwen/qwen3.6-27b", cfg.LLMModel)
 	}
 }
 
@@ -75,18 +81,28 @@ func TestLoadFileRejectsInvalidSettings(t *testing.T) {
 			wantErr: "server.port",
 		},
 		{
-			name:    "missing LLM host",
-			content: `{"server":{"port":8080},"alma":{"host":"localhost","port":8081},"llm":{"provider":"openai","port":1234,"model":"qwen3-8b","max_concurrent":1}}`,
-			wantErr: "llm.host is required",
+			name:    "missing LLM base URL",
+			content: `{"server":{"port":8080},"alma":{"host":"localhost","port":8081},"llm":{"provider":"openai","model":"qwen3-8b","max_concurrent":1}}`,
+			wantErr: "llm.base_url is required",
+		},
+		{
+			name:    "invalid LLM URL scheme",
+			content: `{"server":{"port":8080},"alma":{"host":"localhost","port":8081},"llm":{"provider":"openai","base_url":"ftp://api.example.com/v1","model":"qwen3-8b","max_concurrent":1}}`,
+			wantErr: "scheme must be http or https",
+		},
+		{
+			name:    "LLM URL missing hostname",
+			content: `{"server":{"port":8080},"alma":{"host":"localhost","port":8081},"llm":{"provider":"openai","base_url":"https:///v1","model":"qwen3-8b","max_concurrent":1}}`,
+			wantErr: "must include a hostname",
 		},
 		{
 			name:    "missing LLM model",
-			content: `{"server":{"port":8080},"alma":{"host":"localhost","port":8081},"llm":{"provider":"openai","host":"localhost","port":1234,"max_concurrent":1}}`,
+			content: `{"server":{"port":8080},"alma":{"host":"localhost","port":8081},"llm":{"provider":"openai","base_url":"http://localhost:1234/v1","max_concurrent":1}}`,
 			wantErr: "llm.model is required",
 		},
 		{
 			name:    "invalid LLM concurrency",
-			content: `{"server":{"port":8080},"alma":{"host":"localhost","port":8081},"llm":{"provider":"openai","host":"localhost","port":1234,"model":"qwen3-8b","max_concurrent":0}}`,
+			content: `{"server":{"port":8080},"alma":{"host":"localhost","port":8081},"llm":{"provider":"openai","base_url":"http://localhost:1234/v1","model":"qwen3-8b","max_concurrent":0}}`,
 			wantErr: "llm.max_concurrent",
 		},
 	}

@@ -8,9 +8,8 @@
   },
   "llm": {
     "provider": "openai",
-    "host": "127.0.0.1",
-    "port": 1234,
-    "model": "deepseek/deepseek-r1-0528-qwen3-8b",
-    "max_concurrent": 1
+    "base_url": "https://api.groq.com/openai/v1",
+    "model": "qwen/qwen3.6-27b",
+    "max_concurrent": 4
   }
 }
