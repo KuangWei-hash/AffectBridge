@@ -35,15 +35,33 @@ func NewRouter(cfg *config.Config) *http.ServeMux {
 	// The LLM client. When LLM_API_KEY is set, route through pgEdge's
 	// unified library (OpenAI / Anthropic / Gemini / Ollama).
 	// Otherwise fall back to a no-op client so the server can boot.
+	//
+	// Wiring: primary pgEdge client -> Limiter -> [optional Router
+	// over fallbacks]. Each fallback gets its own Limiter so capacity
+	// is tracked per provider.
 	var llmClient llm.Client
 	if cfg.LLMAPIKey != "" {
-		c, err := llm.NewPgEdgeClient(cfg.LLMProvider, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMBaseURL)
+		primary, err := llm.NewPgEdgeClient(cfg.LLMProvider, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMBaseURL)
 		if err != nil {
 			log.Printf("llm: pgEdge client init failed: %v; falling back to noop", err)
 			llmClient = llm.NewNoopClient()
 		} else {
-			llmClient = c
-			log.Printf("llm: provider=%s model=%s", cfg.LLMProvider, cfg.LLMModel)
+			providers := []llm.Client{llm.NewLimiter(primary, cfg.LLMMaxConcurrent)}
+			for _, fbProvider := range cfg.LLMFallback {
+				fb, fbErr := llm.NewPgEdgeClient(fbProvider, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMBaseURL)
+				if fbErr != nil {
+					log.Printf("llm: fallback provider=%s init failed: %v", fbProvider, fbErr)
+					continue
+				}
+				providers = append(providers, llm.NewLimiter(fb, cfg.LLMMaxConcurrent))
+			}
+			if len(providers) > 1 {
+				llmClient = llm.NewRouter(providers...)
+			} else {
+				llmClient = providers[0]
+			}
+			log.Printf("llm: provider=%s model=%s max_concurrent=%d fallbacks=%v",
+				cfg.LLMProvider, cfg.LLMModel, cfg.LLMMaxConcurrent, cfg.LLMFallback)
 		}
 	} else {
 		llmClient = llm.NewNoopClient()

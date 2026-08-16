@@ -5,7 +5,15 @@
 // interface, so the provider can be swapped by changing one wire.
 package llm
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrBusy is returned by the limiter when the configured concurrency
+// cap is reached. The caller should NOT retry; either fail fast or
+// route to a different provider.
+var ErrBusy = errors.New("llm: at capacity")
 
 // Client is a provider-agnostic LLM client.
 type Client interface {
