@@ -1,0 +1,174 @@
+{
+  "name": "Lisa",
+  "personality": {
+    "openness": -0.25,
+    "conscientiousness": 0.5,
+    "extraversion": -0.5,
+    "agreeableness": -0.42,
+    "neurotism": 0.5,
+    "emotion_influence": 0.4,
+    "derived": false
+  },
+  "mood": {
+    "decay_time": 1800000,
+    "decay_period": 250,
+    "neurotism_stability": false
+  },
+  "emotion": {
+    "decay_time": 45000,
+    "decay_period": 500,
+    "decay_function": "exponential",
+    "baseline": 0.1
+  },
+  "internal_affect_appraisal": false,
+  "appraisal": {
+    "GoodEvent": {
+      "desirability": 0.7
+    },
+    "BadEvent": {
+      "desirability": -0.9
+    },
+    "GoodEventForGoodOther": {
+      "agency": "other",
+      "desirability": 0.8,
+      "liking": 0.9
+    },
+    "GoodEventForBadOther": {
+      "agency": "other",
+      "desirability": 0.6,
+      "liking": -0.8
+    },
+    "BadEventForGoodOther": {
+      "agency": "other",
+      "desirability": -0.9,
+      "liking": 0.9
+    },
+    "BadEventForBadOther": {
+      "agency": "other",
+      "desirability": -0.6,
+      "liking": -0.8
+    },
+    "GoodLikelyFutureEvent": {
+      "desirability": 0.8,
+      "likelihood": 0.7
+    },
+    "GoodUnlikelyFutureEvent": {
+      "desirability": 0.8,
+      "likelihood": -0.8
+    },
+    "BadLikelyFutureEvent": {
+      "desirability": -0.9,
+      "likelihood": 0.8
+    },
+    "BadUnlikelyFutureEvent": {
+      "desirability": -0.8,
+      "likelihood": -0.7
+    },
+    "EventConfirmed": {
+      "realization": true
+    },
+    "EventDisconfirmed": {
+      "realization": false
+    },
+    "GoodActSelf": {
+      "praiseworthiness": 0.8,
+      "agency": "self"
+    },
+    "GoodActOther": {
+      "praiseworthiness": 0.8,
+      "agency": "other"
+    },
+    "BadActSelf": {
+      "praiseworthiness": -0.9,
+      "agency": "self"
+    },
+    "BadActOther": {
+      "praiseworthiness": -0.9,
+      "agency": "other"
+    },
+    "NiceThing": {
+      "appealingness": 0.4
+    },
+    "NastyThing": {
+      "appealingness": -0.6
+    }
+  },
+  "complex_appraisal": [
+    {
+      "kind": "self_act",
+      "signal": "KeepOath",
+      "appraisal": {
+        "GoodActSelf": {
+          "praiseworthiness": 1.0,
+          "agency": "self"
+        }
+      }
+    },
+    {
+      "kind": "self_act",
+      "signal": "BreakOath",
+      "appraisal": {
+        "BadActSelf": {
+          "praiseworthiness": -1.0,
+          "agency": "self"
+        }
+      }
+    },
+    {
+      "kind": "direct_act",
+      "signal": "Protect",
+      "performer": "Kevin",
+      "appraisal": {
+        "GoodActOther": {
+          "praiseworthiness": 1.0,
+          "agency": "other"
+        }
+      }
+    },
+    {
+      "kind": "direct_act",
+      "signal": "Betray",
+      "performer": "Kevin",
+      "appraisal": {
+        "BadActOther": {
+          "praiseworthiness": -1.0,
+          "agency": "other"
+        }
+      }
+    },
+    {
+      "kind": "indirect_act",
+      "signal": "ShowAffectionToOther",
+      "performer": "Kevin",
+      "appraisal": {
+        "BadEvent": {
+          "desirability": -0.9
+        }
+      }
+    },
+    {
+      "kind": "indirect_emotion",
+      "signal": "Distress",
+      "performer": "Kevin",
+      "appraisal": {
+        "BadEventForGoodOther": {
+          "agency": "other",
+          "desirability": -0.9,
+          "liking": 1.0
+        }
+      }
+    },
+    {
+      "kind": "indirect_emotion",
+      "signal": "Joy",
+      "performer": "Kevin",
+      "appraisal": {
+        "GoodEventForGoodOther": {
+          "agency": "other",
+          "desirability": 0.9,
+          "liking": 1.0
+        }
+      }
+    }
+  ]
+}
