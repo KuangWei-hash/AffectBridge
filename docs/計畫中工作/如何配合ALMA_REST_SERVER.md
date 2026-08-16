@@ -217,19 +217,33 @@ Adapter-side 有兩個預檢：
 
 ## Configuration
 
-從 `.env` / `.env.example` 來：
+ALMA 連線只使用專案根目錄的 `config.json`：
 
-```bash
-ALMA_ADDR=http://127.0.0.1:<alma-port>  # private ALMA REST base URL
-ALMA_HOME=/path/to/alma          # optional，informational only
+```json
+{
+  "server": {
+    "port": 8080
+  },
+  "alma": {
+    "host": "127.0.0.1",
+    "port": 8081
+  },
+  "llm": {
+    "provider": "openai",
+    "host": "127.0.0.1",
+    "port": 1234,
+    "model": "deepseek/deepseek-r1-0528-qwen3-8b",
+    "max_concurrent": 1
+  }
+}
 ```
 
-`ALMA_ADDR` 是 server 部署設定，不得從玩家 request、header 或 query parameter 覆寫。ALMA 應只綁定 loopback 或放在受信任的 private network，不對公網暴露。
+`alma.host` 只填 hostname 或 IP，不含 `http://`；AffectBridge 會自行組成 REST base URL。這些值不得從玩家 request、header 或 query parameter 覆寫。ALMA 應只綁定 loopback 或放在受信任的 private network，不對公網暴露。
 
 `routes.go` 的 wiring 邏輯：
-- `ALMA_ADDR` 設了 → 用 `alma.Client`
-- 明確的開發／測試模式 → 可用 `affect.NewNoopEngine()`
-- production 模式未設 ALMA 或 health check 失敗 → fail fast 或對外回服務不可用，不可靜默退回 noop 使玩家以為情緒運算正常
+- `config.json` 的 `alma.host` 與 `alma.port` 合法 → 使用 `alma.Client`
+- 設定檔缺失或欄位不合法 → server 啟動失敗並回報清楚錯誤
+- 不再用 `ALMA_HOME` 判斷是否啟用，也不靜默退回 noop 使玩家以為情緒運算正常
 
 ## 已知落差 / TODO
 
@@ -239,7 +253,7 @@ ALMA_HOME=/path/to/alma          # optional，informational only
 - [ ] **in-memory repository 角色定位**：保留 AffectBridge ID → ALMA name / persona payload / lifecycle metadata 對照，供 ALMA 重啟後重建角色；不保存第二份 mood/emotion state。
 - [ ] **chat pipeline 中表達階段**目前給 LLM 的 prompt 是用我自己組的 `state`，要改成讀 ALMA 回的 `Affect` 結構（含 `Mood.Word`、dominant emotion 等）。
 - [ ] **public API boundary** 還沒收緊。玩家只送對話／遊戲事件；直接提交 appraisal 或讀 raw affect 的 endpoint 僅能是受信任的內部、管理或測試界面。
-- [ ] **configuration 一致性** 還沒做。`.env.example`、`internal/config` 與 ALMA 實際 listen port 必須使用同一個部署設定，不要在多處各自假設不同 port。
+- [x] **configuration 一致性**：`config.json` 是 server port 與 ALMA host/port 的單一來源；`internal/config` 驗證後組成 ALMA base URL。
 - [ ] **streaming** 還沒接。
 - [ ] **integration test** 還沒寫。要 mock 一個 `pgedgellm.Client` 介面、mock 一個 `alma.Client` 介面，驗 pipeline。
 
@@ -262,4 +276,5 @@ ALMA_HOME=/path/to/alma          # optional，informational only
 - `internal/controller/*` — 僅暴露 AffectBridge public DTO，不暴露 ALMA raw schema/error
 - `internal/repository/character_repository.go` — 只保存角色身分、persona 與 ALMA 生命週期對照，不保存 affective state 副本
 - `api/routes.go` — wiring
-- `.env.example` — 已有 `ALMA_ADDR` 設定
+- `config.json` — AffectBridge server、ALMA 與本機 LLM 的連線設定
+- `.env.example` — 只保留遠端 provider 可能需要的 API key

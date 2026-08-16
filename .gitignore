@@ -30,3 +30,9 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# OpenClaw agent workspaces (local-only, not part of the project)
+# Each agent (e.g. agents/lisa/) is a runtime workspace with its own
+# SOUL/IDENTITY/AGENTS/USER/HEARTBEAT/TOOLS files plus a memory/ dir.
+# Add `!agents/<name>/` here if a specific agent should be committed.
+agents/

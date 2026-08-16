@@ -1,27 +1,25 @@
 // Package config centralizes runtime configuration.
 //
-// Configuration is read from environment variables. Defaults are
-// chosen so the server can boot without any setup for development.
+// Server, ALMA, and LLM connection settings are read from config.json.
+// Only optional secrets remain environment variables.
 package config
 
 import (
+	"encoding/json"
+	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
 )
 
+const DefaultPath = "config.json"
+
 type Config struct {
 	// HTTP listen port.
 	Port string
 
-	// Path to the locally installed ALMA runtime (informational).
-	// AffectBridge does not read this directly; it is passed to the
-	// ALMA backend if/when the runtime exposes its own HTTP server.
-	ALMAHome string
-
-	// HTTP address of a running ALMA runtime. When ALMAHome and
-	// ALMAAddr are both set, the ALMA affect engine is wired in.
-	// Otherwise a no-op engine is used.
+	// HTTP address assembled from alma.host and alma.port in config.json.
 	ALMAAddr string
 
 	// LLM provider identifier. "openai", "anthropic", "local", etc.
@@ -41,59 +39,85 @@ type Config struct {
 	// the cap is reached the limiter returns ErrBusy instead of
 	// queueing. <= 0 disables the limit.
 	LLMMaxConcurrent int
-
-	// LLMFallback is an ordered list of additional provider names to
-	// try when the primary provider returns an error (including
-	// ErrBusy). Empty = no fallback. All providers in the chain
-	// share the same API key, model, and base URL; for heterogeneous
-	// setups, extend the config.
-	LLMFallback []string
 }
 
-func Load() *Config {
-	return &Config{
-		Port:             getEnv("PORT", "8080"),
-		ALMAHome:         os.Getenv("ALMA_HOME"),
-		ALMAAddr:         getEnv("ALMA_ADDR", "http://localhost:9090"),
-		LLMProvider:      getEnv("LLM_PROVIDER", "openai"),
-		LLMAPIKey:        os.Getenv("LLM_API_KEY"),
-		LLMModel:         getEnv("LLM_MODEL", "gpt-4o-mini"),
-		LLMBaseURL:       os.Getenv("LLM_BASE_URL"),
-		LLMMaxConcurrent: getEnvInt("LLM_MAX_CONCURRENT", 32),
-		LLMFallback:      parseCSV(os.Getenv("LLM_FALLBACK")),
-	}
+type fileConfig struct {
+	Server struct {
+		Port int `json:"port"`
+	} `json:"server"`
+	ALMA struct {
+		Host string `json:"host"`
+		Port int    `json:"port"`
+	} `json:"alma"`
+	LLM struct {
+		Provider      string `json:"provider"`
+		Host          string `json:"host"`
+		Port          int    `json:"port"`
+		Model         string `json:"model"`
+		MaxConcurrent int    `json:"max_concurrent"`
+	} `json:"llm"`
 }
 
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
+func Load() (*Config, error) {
+	return LoadFile(DefaultPath)
 }
 
-func getEnvInt(key string, fallback int) int {
-	v := os.Getenv(key)
-	if v == "" {
-		return fallback
-	}
-	n, err := strconv.Atoi(v)
+func LoadFile(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return fallback
+		return nil, fmt.Errorf("config: read %s: %w", path, err)
 	}
-	return n
-}
 
-func parseCSV(s string) []string {
-	if s == "" {
-		return nil
+	var file fileConfig
+	if err := json.Unmarshal(data, &file); err != nil {
+		return nil, fmt.Errorf("config: parse %s: %w", path, err)
 	}
-	parts := strings.Split(s, ",")
-	out := parts[:0]
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
+
+	file.ALMA.Host = strings.TrimSpace(file.ALMA.Host)
+	file.LLM.Provider = strings.TrimSpace(file.LLM.Provider)
+	file.LLM.Host = strings.TrimSpace(file.LLM.Host)
+	file.LLM.Model = strings.TrimSpace(file.LLM.Model)
+	if file.Server.Port < 1 || file.Server.Port > 65535 {
+		return nil, fmt.Errorf("config: server.port must be between 1 and 65535")
 	}
-	return out
+	if file.ALMA.Host == "" {
+		return nil, fmt.Errorf("config: alma.host is required")
+	}
+	if strings.Contains(file.ALMA.Host, "://") {
+		return nil, fmt.Errorf("config: alma.host must contain only a hostname or IP address")
+	}
+	if file.ALMA.Port < 1 || file.ALMA.Port > 65535 {
+		return nil, fmt.Errorf("config: alma.port must be between 1 and 65535")
+	}
+	if file.LLM.Provider == "" {
+		return nil, fmt.Errorf("config: llm.provider is required")
+	}
+	if file.LLM.Host == "" {
+		return nil, fmt.Errorf("config: llm.host is required")
+	}
+	if strings.Contains(file.LLM.Host, "://") {
+		return nil, fmt.Errorf("config: llm.host must contain only a hostname or IP address")
+	}
+	if file.LLM.Port < 1 || file.LLM.Port > 65535 {
+		return nil, fmt.Errorf("config: llm.port must be between 1 and 65535")
+	}
+	if file.LLM.Model == "" {
+		return nil, fmt.Errorf("config: llm.model is required")
+	}
+	if file.LLM.MaxConcurrent < 1 {
+		return nil, fmt.Errorf("config: llm.max_concurrent must be at least 1")
+	}
+
+	almaAddr := "http://" + net.JoinHostPort(file.ALMA.Host, strconv.Itoa(file.ALMA.Port))
+	llmBaseURL := "http://" + net.JoinHostPort(file.LLM.Host, strconv.Itoa(file.LLM.Port)) + "/v1"
+
+	return &Config{
+		Port:             strconv.Itoa(file.Server.Port),
+		ALMAAddr:         almaAddr,
+		LLMProvider:      file.LLM.Provider,
+		LLMAPIKey:        os.Getenv("LLM_API_KEY"),
+		LLMModel:         file.LLM.Model,
+		LLMBaseURL:       llmBaseURL,
+		LLMMaxConcurrent: file.LLM.MaxConcurrent,
+	}, nil
 }

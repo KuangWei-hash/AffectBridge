@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/KuangWei-hash/AffectBridge/internal/affect"
 	"github.com/KuangWei-hash/AffectBridge/internal/affect/alma"
 	"github.com/KuangWei-hash/AffectBridge/internal/config"
 	"github.com/KuangWei-hash/AffectBridge/internal/controller"
@@ -23,48 +22,23 @@ func NewRouter(cfg *config.Config) *http.ServeMux {
 
 	repo := repository.NewInMemoryCharacterRepository()
 
-	// The affect engine. ALMA is the targeted backend; noop is used
-	// until ALMA is wired up.
-	var affectEngine affect.Engine
-	if cfg.ALMAHome != "" && cfg.ALMAAddr != "" {
-		affectEngine = alma.NewEngine(cfg.ALMAAddr)
-	} else {
-		affectEngine = affect.NewNoopEngine()
-	}
+	// ALMA is the affect engine. Its address is assembled from the
+	// required alma.host and alma.port values in config.json.
+	affectEngine := alma.NewEngine(cfg.ALMAAddr)
 
-	// The LLM client. When LLM_API_KEY is set, route through pgEdge's
-	// unified library (OpenAI / Anthropic / Gemini / Ollama).
-	// Otherwise fall back to a no-op client so the server can boot.
+	// The LLM client routes through pgEdge's unified library. Local
+	// OpenAI-compatible servers such as LM Studio do not need an API key.
 	//
-	// Wiring: primary pgEdge client -> Limiter -> [optional Router
-	// over fallbacks]. Each fallback gets its own Limiter so capacity
-	// is tracked per provider.
+	// Wiring: pgEdge client -> Limiter.
 	var llmClient llm.Client
-	if cfg.LLMAPIKey != "" {
-		primary, err := llm.NewPgEdgeClient(cfg.LLMProvider, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMBaseURL)
-		if err != nil {
-			log.Printf("llm: pgEdge client init failed: %v; falling back to noop", err)
-			llmClient = llm.NewNoopClient()
-		} else {
-			providers := []llm.Client{llm.NewLimiter(primary, cfg.LLMMaxConcurrent)}
-			for _, fbProvider := range cfg.LLMFallback {
-				fb, fbErr := llm.NewPgEdgeClient(fbProvider, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMBaseURL)
-				if fbErr != nil {
-					log.Printf("llm: fallback provider=%s init failed: %v", fbProvider, fbErr)
-					continue
-				}
-				providers = append(providers, llm.NewLimiter(fb, cfg.LLMMaxConcurrent))
-			}
-			if len(providers) > 1 {
-				llmClient = llm.NewRouter(providers...)
-			} else {
-				llmClient = providers[0]
-			}
-			log.Printf("llm: provider=%s model=%s max_concurrent=%d fallbacks=%v",
-				cfg.LLMProvider, cfg.LLMModel, cfg.LLMMaxConcurrent, cfg.LLMFallback)
-		}
-	} else {
+	primary, err := llm.NewPgEdgeClient(cfg.LLMProvider, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMBaseURL)
+	if err != nil {
+		log.Printf("llm: pgEdge client init failed: %v; falling back to noop", err)
 		llmClient = llm.NewNoopClient()
+	} else {
+		llmClient = llm.NewLimiter(primary, cfg.LLMMaxConcurrent)
+		log.Printf("llm: provider=%s model=%s base_url=%s max_concurrent=%d",
+			cfg.LLMProvider, cfg.LLMModel, cfg.LLMBaseURL, cfg.LLMMaxConcurrent)
 	}
 
 	charSvc := service.NewCharacterService(repo)

@@ -263,13 +263,28 @@ User
          └── original ALMA license
 ```
 
-A future setup may look similar to:
+AffectBridge only needs the ALMA REST server host and port in `config.json`:
 
-```bash
-export ALMA_HOME=/path/to/alma
+```json
+{
+  "server": {
+    "port": 8080
+  },
+  "alma": {
+    "host": "127.0.0.1",
+    "port": 8081
+  },
+  "llm": {
+    "provider": "openai",
+    "host": "127.0.0.1",
+    "port": 1234,
+    "model": "deepseek/deepseek-r1-0528-qwen3-8b",
+    "max_concurrent": 1
+  }
+}
 ```
 
-AffectBridge then communicates with the locally installed ALMA runtime.
+AffectBridge then communicates with the separately installed ALMA runtime and the local LM Studio OpenAI-compatible server over HTTP.
 
 ---
 
@@ -941,13 +956,28 @@ Original source repository:
 
 https://github.com/A-L-M-A/ALMA
 
-After installing or compiling ALMA, AffectBridge will eventually support configuration similar to:
+After installing or compiling ALMA, set its REST server address in `config.json`:
 
-```bash
-export ALMA_HOME=/path/to/alma
+```json
+{
+  "server": {
+    "port": 8080
+  },
+  "alma": {
+    "host": "127.0.0.1",
+    "port": 8081
+  },
+  "llm": {
+    "provider": "openai",
+    "host": "127.0.0.1",
+    "port": 1234,
+    "model": "deepseek/deepseek-r1-0528-qwen3-8b",
+    "max_concurrent": 1
+  }
+}
 ```
 
-Detailed setup instructions will be added once the first bridge implementation is available.
+Start the ALMA REST server and LM Studio local server on those addresses before starting AffectBridge. LM Studio must have the configured model loaded; if its model identifier changes, replace it with the ID returned by LM Studio's `/v1/models` endpoint.
 
 ---
 

@@ -177,14 +177,23 @@ Game Server ─────┼─→ LLM Gateway #2
 
 ## 設定
 
-| env | 用途 | 預設 |
-|---|---|---|
-| `LLM_PROVIDER` | `openai` / `anthropic` / `gemini` / `ollama` / `voyage` | `openai` |
-| `LLM_API_KEY` | provider 的 API key | （無） |
-| `LLM_MODEL` | model id | `gpt-4o-mini` |
-| `LLM_BASE_URL` | OpenAI-compatible proxy / 本地 ollama | （空） |
+本機 LLM 與 ALMA 共用專案根目錄的 `config.json`。目前開發設定使用 LM Studio：
 
-`LLM_API_KEY` 一旦有設，`api/routes.go` 自動切到 pgEdge client，沒設就 NoopClient。`NewPgEdgeClient` 失敗也會 fallback 到 Noop，避免 server 開不起來。
+```json
+{
+  "llm": {
+    "provider": "openai",
+    "host": "127.0.0.1",
+    "port": 1234,
+    "model": "deepseek/deepseek-r1-0528-qwen3-8b",
+    "max_concurrent": 1
+  }
+}
+```
+
+LM Studio 提供 OpenAI-compatible API，因此 pgEdge provider 使用 `openai`，AffectBridge 會將 host 與 port 組成 `http://127.0.0.1:1234/v1`。LM Studio 本機服務不需要 API key；若未來改接需要認證的遠端 provider，才從環境變數讀取 `LLM_API_KEY`。
+
+`model` 必須與 LM Studio `/v1/models` 回傳的 ID 一致。目前本機載入的 Qwen3 8B 模型 ID 是 `deepseek/deepseek-r1-0528-qwen3-8b`；若日後更換模型，直接修改此欄位即可。
 
 ## 已做
 
@@ -212,7 +221,7 @@ Game Server ─────┼─→ LLM Gateway #2
 
 ## 如何加 provider
 
-理論上不用加。`LLM_PROVIDER=xxx` 加對應的 key 就行。如果 pgEdge 沒註冊某個 provider 才需要：
+理論上不用加。在 `config.json` 修改 `llm.provider` 與連線資料即可；若 provider 需要金鑰，再設定 `LLM_API_KEY`。如果 pgEdge 沒註冊某個 provider 才需要：
 
 1. 換成 `import _ "github.com/pgEdge/pgedge-go-llm-lib/llm/provider/xxx"` 把全包換成單包
 2. 或在 `pgedge.go` 自己寫 client 實作 `pgedgellm.Client` interface
