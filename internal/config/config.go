@@ -28,6 +28,10 @@ type Config struct {
 
 	// Model name for the chosen LLM provider.
 	LLMModel string
+
+	// Optional base URL override. Useful for OpenAI-compatible
+	// proxies, local gateways, or self-hosted providers.
+	LLMBaseURL string
 }
 
 func Load() *Config {
@@ -38,6 +42,7 @@ func Load() *Config {
 		LLMProvider: getEnv("LLM_PROVIDER", "openai"),
 		LLMAPIKey:   os.Getenv("LLM_API_KEY"),
 		LLMModel:    getEnv("LLM_MODEL", "gpt-4o-mini"),
+		LLMBaseURL:  os.Getenv("LLM_BASE_URL"),
 	}
 }
 

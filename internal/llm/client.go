@@ -19,11 +19,16 @@ type options struct {
 	temperature float64
 	maxTokens   int
 	system      string
+	jsonMode    bool
 }
 
 func WithTemperature(t float64) Option { return func(o *options) { o.temperature = t } }
 func WithMaxTokens(n int) Option      { return func(o *options) { o.maxTokens = n } }
 func WithSystem(s string) Option      { return func(o *options) { o.system = s } }
+// WithJSONMode instructs the provider to return a JSON object. The
+// Interpreter (llm.Appraise) uses it. Providers that do not support
+// JSON mode ignore it.
+func WithJSONMode() Option { return func(o *options) { o.jsonMode = true } }
 
 // NewNoopClient returns a client that always returns a placeholder
 // response. It lets the rest of the system boot without an LLM
@@ -34,6 +39,15 @@ func NewNoopClient() Client {
 
 type noopClient struct{}
 
-func (n *noopClient) Complete(_ context.Context, prompt string, _ ...Option) (string, error) {
+func (n *noopClient) Complete(_ context.Context, _ string, opts ...Option) (string, error) {
+	o := options{}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.jsonMode {
+		// Return a valid zero Appraisal so the Interpreter pipeline
+		// can still run without a real LLM configured.
+		return `{"agency":"none","desirability":0,"unexpectedness":0,"blameworthiness":0,"praiseworthiness":0}`, nil
+	}
 	return "[no llm configured]", nil
 }

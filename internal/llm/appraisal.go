@@ -21,7 +21,7 @@ Given an event, return a JSON object with these fields:
 - praiseworthiness: float in [0, 1]
 Return only the JSON object, no commentary.`
 
-	raw, err := client.Complete(ctx, event, WithSystem(system))
+	raw, err := client.Complete(ctx, event, WithSystem(system), WithJSONMode())
 	if err != nil {
 		return model.Appraisal{}, err
 	}

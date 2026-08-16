@@ -6,6 +6,7 @@
 package api
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/KuangWei-hash/AffectBridge/internal/affect"
@@ -31,8 +32,22 @@ func NewRouter(cfg *config.Config) *http.ServeMux {
 		affectEngine = affect.NewNoopEngine()
 	}
 
-	// The LLM client. Replace with a real provider when ready.
-	llmClient := llm.NewNoopClient()
+	// The LLM client. When LLM_API_KEY is set, route through pgEdge's
+	// unified library (OpenAI / Anthropic / Gemini / Ollama).
+	// Otherwise fall back to a no-op client so the server can boot.
+	var llmClient llm.Client
+	if cfg.LLMAPIKey != "" {
+		c, err := llm.NewPgEdgeClient(cfg.LLMProvider, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMBaseURL)
+		if err != nil {
+			log.Printf("llm: pgEdge client init failed: %v; falling back to noop", err)
+			llmClient = llm.NewNoopClient()
+		} else {
+			llmClient = c
+			log.Printf("llm: provider=%s model=%s", cfg.LLMProvider, cfg.LLMModel)
+		}
+	} else {
+		llmClient = llm.NewNoopClient()
+	}
 
 	charSvc := service.NewCharacterService(repo)
 	affectSvc := service.NewAffectService(affectEngine, repo)
