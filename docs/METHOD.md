@@ -141,6 +141,13 @@ Relevant game events
 Story
 ```
 
+The implemented v0.1 first stage uses the latest ten chronological utterances
+(player and character messages each count as one) and requests a maximum
+128-token Story. Every Story clause must identify its subject explicitly using
+`玩家` or a known character name; personal pronouns are rejected. Its code
+contract, safety boundary, and integration lifecycle
+are documented in [`STORY_PIPELINE.md`](STORY_PIPELINE.md).
+
 The Story should describe what happened without pre-labeling the emotion.
 
 For example, the Story should prefer:

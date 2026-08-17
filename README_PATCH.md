@@ -41,6 +41,7 @@ See:
 - [`docs/METHOD.md`](docs/METHOD.md)
 - [`docs/APPRAISAL_TAGS.md`](docs/APPRAISAL_TAGS.md)
 - [`docs/EVALUATION.md`](docs/EVALUATION.md)
+- [`docs/STORY_PIPELINE.md`](docs/STORY_PIPELINE.md)
 
 ---
 
