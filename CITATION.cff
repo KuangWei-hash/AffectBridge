@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+
+message: >
+  If you use AffectBridge or its structured LLM appraisal method
+  in your work, please cite this repository.
+
+title: "AffectBridge"
+
+type: software
+
+authors:
+  - family-names: "Chen"
+    given-names: "KuangWei"
+
+date-released: "2026-08-17"
+
+license: Apache-2.0
+
+repository-code: "https://github.com/KuangWei-hash/AffectBridge"
+
+abstract: >
+  AffectBridge is an experimental architecture for mapping narrative
+  game events and character-specific viewpoints into structured ALMA
+  appraisal input using small independent LLM workers, while retaining
+  explicit ALMA emotion and mood dynamics for persistent NPC affect.
+
+keywords:
+  - affective computing
+  - game AI
+  - NPC
+  - large language models
+  - appraisal
+  - ALMA

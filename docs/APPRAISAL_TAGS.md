@@ -1,0 +1,311 @@
+# APPRAISAL_TAGS — Canonical v0.1 Specification
+
+## Status
+
+**Canonical AffectBridge v0.1 Boolean appraisal specification**
+
+This document defines the current natural-language question mapping used by the AffectBridge **input-appraisal tags 轉換系統**.
+
+Unless explicitly revised, these questions should be treated as the baseline specification for testing.
+
+---
+
+## 1. Purpose
+
+The original ALMA tag names are compact and technically meaningful, but they are not necessarily the clearest interface for an LLM.
+
+AffectBridge therefore rewrites each tag as a direct natural-language TRUE/FALSE question.
+
+The worker does not need to infer the intended meaning of a tag name such as:
+
+```text
+BadActOther
+```
+
+from the identifier alone.
+
+Instead, it is asked the actual semantic question.
+
+---
+
+## 2. Canonical 18 questions
+
+The generic definitions are:
+
+### 1. GoodEvent
+
+> 故事中是否發生了對這個角色本人有利、符合其利益或目標的事情？
+
+### 2. BadEvent
+
+> 故事中是否發生了對這個角色本人不利、損害其利益或妨礙其目標的事情？
+
+### 3. GoodEventForGoodOther
+
+> 故事中是否發生了對這個角色所喜歡、關心或友善看待的人有利的事情？
+
+### 4. GoodEventForBadOther
+
+> 故事中是否發生了對這個角色所討厭、敵視或反感的人有利的事情？
+
+### 5. BadEventForGoodOther
+
+> 故事中是否發生了對這個角色所喜歡、關心或友善看待的人不利的事情？
+
+### 6. BadEventForBadOther
+
+> 故事中是否發生了對這個角色所討厭、敵視或反感的人不利的事情？
+
+### 7. GoodLikelyFutureEvent
+
+> 故事中是否存在一件尚未發生、對這個角色有利，而且角色認為很可能發生的未來事情？
+
+### 8. GoodUnlikelyFutureEvent
+
+> 故事中是否存在一件尚未發生、對這個角色有利，但角色認為不太可能發生的未來事情？
+
+### 9. BadLikelyFutureEvent
+
+> 故事中是否存在一件尚未發生、對這個角色不利，而且角色認為很可能發生的未來事情？
+
+### 10. BadUnlikelyFutureEvent
+
+> 故事中是否存在一件尚未發生、對這個角色不利，但角色認為不太可能發生的未來事情？
+
+### 11. EventConfirmed
+
+> 故事中是否有一件這個角色先前已經預期可能發生的事情，現在真的發生了？
+
+### 12. EventDisconfirmed
+
+> 故事中是否有一件這個角色先前已經預期可能發生的事情，現在已確定沒有發生或結果與預期相反？
+
+### 13. GoodActSelf
+
+> 故事中這個角色本人是否做了某個依照其自身價值標準來看值得肯定、稱許或認同的行為？
+
+### 14. GoodActOther
+
+> 故事中是否有其他人做了某個依照這個角色的價值標準來看值得肯定、稱許或認同的行為？
+
+### 15. BadActSelf
+
+> 故事中這個角色本人是否做了某個依照其自身價值標準來看錯誤、應受責備或不被認同的行為？
+
+### 16. BadActOther
+
+> 故事中是否有其他人做了某個依照這個角色的價值標準來看錯誤、應受責備或不被認同的行為？
+
+### 17. NiceThing
+
+> 故事中是否出現了某個人物、物品或事物本身，是這個角色覺得喜歡、欣賞或具有吸引力的？
+
+### 18. NastyThing
+
+> 故事中是否出現了某個人物、物品或事物本身，是這個角色覺得討厭、反感或令人排斥的？
+
+---
+
+## 3. Runtime character substitution
+
+For actual workers, ambiguous references should be replaced with the explicit character name.
+
+Example:
+
+Generic:
+
+```text
+故事中是否發生了對這個角色本人有利、符合其利益或目標的事情？
+```
+
+Runtime form:
+
+```text
+故事中是否發生了對 Lisa 本人有利、符合 Lisa 的利益或目標的事情？
+```
+
+The goal is to minimize unnecessary pronoun resolution inside long prompts.
+
+---
+
+## 4. Worker behavior
+
+Each specialized worker may know the full 18-question ontology, but must answer only one designated question.
+
+Example:
+
+```text
+【本 Worker 唯一需要回答的問題】
+
+問題 1：
+故事中是否發生了對 Lisa 本人有利、符合 Lisa 的利益或目標的事情？
+```
+
+The other questions exist only to clarify semantic boundaries between appraisal concepts.
+
+---
+
+## 5. Boolean output
+
+Required first-stage output:
+
+```text
+是/否: 是 或 否
+理由: 一句簡短理由
+```
+
+Rules:
+
+- If evidence is insufficient, output `否`.
+- Do not invent missing relationships or expectations.
+- Do not answer other appraisal questions.
+- Use character-specific viewpoints when available.
+- Use reasonable common sense for unspecified ordinary values.
+- Character-specific viewpoints override generic common-sense assumptions when they conflict.
+
+---
+
+## 6. Semantic intensity scale
+
+Only if the Boolean result is `是`, estimate intensity.
+
+Allowed values:
+
+### 極輕微
+
+影響非常小，幾乎可以忽略。
+
+### 輕微
+
+有影響，但程度不大。
+
+### 中等
+
+有明顯影響，對角色具有一定重要性。
+
+### 強烈
+
+影響很大，涉及角色重要的利益、目標、關係或價值。
+
+### 非常強烈
+
+影響非常大，涉及角色非常重視的利益、目標、關係、承諾或價值。
+
+### 極端
+
+直接觸及角色最核心、最高度重視或最不能接受失去的利益、關係、承諾、目標或價值。
+
+If the Boolean result is `否`:
+
+```text
+強度: 不適用
+```
+
+---
+
+## 7. Final output contract
+
+```text
+是/否: 是 或 否
+理由: 一句簡短理由
+強度: 極輕微 / 輕微 / 中等 / 強烈 / 非常強烈 / 極端 / 不適用
+```
+
+No additional prose is required from the worker.
+
+---
+
+## 8. Example: GoodEvent worker for Lisa
+
+```text
+【角色】
+Lisa
+
+【角色的特殊看法】
+
+Lisa 對陌生人與不熟悉的人有很強的戒心，不會輕易相信別人的善意。
+Lisa 非常重視「自己人」與「外人」的區別；一旦真正認定某人，對對方的信任、關心與忠誠會遠高於一般程度。
+Lisa 對感情非常專一，對自己認定的愛情具有很強的排他性。
+Lisa 非常厭惡欺騙、背叛與感情上的不忠，尤其無法輕易接受來自親近之人的背叛。
+Lisa 非常重視承諾。她把明確說出口的約定看得比一般人更嚴肅。
+Lisa 自尊心很強，特別不能接受被輕視、戲弄、羞辱或被人以居高臨下的態度對待。
+Lisa 不喜歡虛偽、拐彎抹角或過度世故的待人方式，更傾向認同直接、坦白的表達。
+Lisa 對勇敢、願意承擔危險、在危急時刻不拋棄同伴的人會給予較高評價。
+Lisa 對膽怯、臨陣退縮、出賣同伴的行為會給予比一般人更強烈的負面評價。
+Lisa 一旦把某人視為敵人或真正厭惡的人，敵我界線會非常鮮明，不容易保持中立。
+Lisa 不太重視一般社會禮數與世俗規矩本身；如果規矩與她自己的忠誠、承諾或感情判斷衝突，她通常更重視自己的判斷。
+Lisa 表面對他人較冷硬，但對已經建立深厚感情的人，其安危與遭遇會對她產生非常高的重要性。
+
+【ALMA Appraisal 判斷問題全集】
+
+1. 故事中是否發生了對 Lisa 本人有利、符合 Lisa 的利益或目標的事情？
+2. 故事中是否發生了對 Lisa 本人不利、損害 Lisa 的利益或妨礙 Lisa 的目標的事情？
+3. 故事中是否發生了對 Lisa 所喜歡、關心或友善看待的人有利的事情？
+4. 故事中是否發生了對 Lisa 所討厭、敵視或反感的人有利的事情？
+5. 故事中是否發生了對 Lisa 所喜歡、關心或友善看待的人不利的事情？
+6. 故事中是否發生了對 Lisa 所討厭、敵視或反感的人不利的事情？
+7. 故事中是否存在一件尚未發生、對 Lisa 有利，而且 Lisa 認為很可能發生的未來事情？
+8. 故事中是否存在一件尚未發生、對 Lisa 有利，但 Lisa 認為不太可能發生的未來事情？
+9. 故事中是否存在一件尚未發生、對 Lisa 不利，而且 Lisa 認為很可能發生的未來事情？
+10. 故事中是否存在一件尚未發生、對 Lisa 不利，但 Lisa 認為不太可能發生的未來事情？
+11. 故事中是否有一件 Lisa 先前已經預期可能發生的事情，現在真的發生了？
+12. 故事中是否有一件 Lisa 先前已經預期可能發生的事情，現在已確定沒有發生或結果與 Lisa 的預期相反？
+13. 故事中 Lisa 本人是否做了某個依照 Lisa 自身價值標準來看值得肯定、稱許或認同的行為？
+14. 故事中是否有其他人做了某個依照 Lisa 的價值標準來看值得肯定、稱許或認同的行為？
+15. 故事中 Lisa 本人是否做了某個依照 Lisa 自身價值標準來看錯誤、應受責備或不被認同的行為？
+16. 故事中是否有其他人做了某個依照 Lisa 的價值標準來看錯誤、應受責備或不被認同的行為？
+17. 故事中是否出現了某個人物、物品或事物本身，是 Lisa 覺得喜歡、欣賞或具有吸引力的？
+18. 故事中是否出現了某個人物、物品或事物本身，是 Lisa 覺得討厭、反感或令人排斥的？
+
+【本 Worker 唯一需要回答的問題】
+
+問題 1：
+
+故事中是否發生了對 Lisa 本人有利、符合 Lisa 的利益或目標的事情？
+
+【判斷規則】
+
+- 其他 17 題只用來幫助理解各種 appraisal 概念之間的差異。
+- 你只能回答問題 1。
+- 不要回答其他問題。
+- 只根據 Lisa 的角色設定與故事內容判斷。
+- 若故事中的證據不足，回答「否」。
+- 不得自行補充故事中不存在的事件、人物關係、期待、意圖或 Lisa 的想法。
+- Lisa 未特別設定的價值觀，可以採用一般合理常識判斷。
+- 如果 Lisa 的特殊看法與一般常識不同，以 Lisa 的特殊看法為準。
+- 只判斷故事中已經發生的事情。尚未發生的未來事件不屬於本題。
+
+【強度判斷】
+
+只有當「是/否」回答為「是」時，才需要判斷強度。
+
+請根據：
+
+- 這件事情本身的重要程度；
+- 這件事情對 Lisa 的利益或目標影響有多大；
+- Lisa 的特殊看法是否會放大或降低這件事情的重要性；
+- 這件事情是否涉及 Lisa 特別重視的人、關係、承諾或其他核心利益。
+
+強度只能選擇：
+
+- 極輕微
+- 輕微
+- 中等
+- 強烈
+- 非常強烈
+- 極端
+
+如果「是/否」回答為「否」：
+
+```text
+強度: 不適用
+```
+
+【最終輸出格式】
+
+是/否: 是 或 否
+理由: 一句簡短理由
+強度: 極輕微 / 輕微 / 中等 / 強烈 / 非常強烈 / 極端 / 不適用
+```
+
+The dynamic Story should be sent separately as runtime input.
