@@ -42,6 +42,9 @@ See:
 - [`docs/APPRAISAL_TAGS.md`](docs/APPRAISAL_TAGS.md)
 - [`docs/EVALUATION.md`](docs/EVALUATION.md)
 - [`docs/STORY_PIPELINE.md`](docs/STORY_PIPELINE.md)
+- [`docs/APPRAISAL_WORKERS.md`](docs/APPRAISAL_WORKERS.md)
+- [`docs/TOPIC_MATCHING.md`](docs/TOPIC_MATCHING.md)
+- [`docs/EMOTION_EVALUATION_PIPELINE.md`](docs/EMOTION_EVALUATION_PIPELINE.md)
 
 ---
 

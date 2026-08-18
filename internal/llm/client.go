@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 )
 
 // ErrBusy is returned by the limiter when the configured concurrency
@@ -57,10 +58,45 @@ func NewNoopClient() Client {
 
 type noopClient struct{}
 
-func (n *noopClient) Complete(_ context.Context, _ string, opts ...Option) (string, error) {
+func (n *noopClient) Complete(_ context.Context, prompt string, opts ...Option) (string, error) {
 	o := options{}
 	for _, opt := range opts {
 		opt(&o)
+	}
+	if len(o.jsonSchema) > 0 && strings.Contains(string(o.jsonSchema), `"new_topic_event"`) {
+		var input struct {
+			CharacterName string `json:"character_name"`
+		}
+		if err := json.Unmarshal([]byte(prompt), &input); err == nil && input.CharacterName != "" {
+			result, _ := json.Marshal(map[string]any{
+				"decision":      "new_topic_event",
+				"relation":      "new",
+				"topic_id":      "",
+				"event_id":      "",
+				"topic_summary": "未設定 LLM 的故事脈絡",
+				"event_summary": "未設定 LLM 的故事事件",
+				"event_type":    "unknown",
+				"subject":       input.CharacterName,
+				"target":        "未明對象",
+				"status":        "active",
+				"reason":        "未設定 LLM，因此建立獨立事件。",
+			})
+			return string(result), nil
+		}
+	}
+	if len(o.jsonSchema) > 0 && strings.Contains(string(o.jsonSchema), `"matched"`) {
+		var input struct {
+			TargetTag string `json:"target_tag"`
+		}
+		if err := json.Unmarshal([]byte(prompt), &input); err == nil && input.TargetTag != "" {
+			result, _ := json.Marshal(map[string]any{
+				"tag":       input.TargetTag,
+				"matched":   false,
+				"reason":    "未設定 LLM，沒有可判斷的證據。",
+				"intensity": "不適用",
+			})
+			return string(result), nil
+		}
 	}
 	if o.jsonMode || len(o.jsonSchema) > 0 {
 		// Return a valid zero Appraisal so the Interpreter pipeline

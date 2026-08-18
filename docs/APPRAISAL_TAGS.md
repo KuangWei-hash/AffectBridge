@@ -4,6 +4,9 @@
 
 **Canonical AffectBridge v0.1 Boolean appraisal specification**
 
+The executable 18-way concurrent worker contract is documented in
+[`APPRAISAL_WORKERS.md`](APPRAISAL_WORKERS.md).
+
 This document defines the current natural-language question mapping used by the AffectBridge **input-appraisal tags 轉換系統**.
 
 Unless explicitly revised, these questions should be treated as the baseline specification for testing.

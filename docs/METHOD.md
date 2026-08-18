@@ -148,6 +148,23 @@ The implemented v0.1 first stage uses the latest ten chronological utterances
 contract, safety boundary, and integration lifecycle
 are documented in [`STORY_PIPELINE.md`](STORY_PIPELINE.md).
 
+The next implemented stage sends the same Story to all 18 appraisal workers at
+the same time. Each worker sees the complete 18-question ontology (variant A)
+but may answer only its designated tag. The synchronized fan-out, structured
+output validation, and failure contract are documented in
+[`APPRAISAL_WORKERS.md`](APPRAISAL_WORKERS.md).
+
+Before worker fan-out, a bounded Topic/Event matcher will assign the stable
+elicitor used to correlate appraisal tags and later prospect confirmation. Its
+32-entry per-character hot-pool policy and conservative matching contract are
+specified in [`TOPIC_MATCHING.md`](TOPIC_MATCHING.md).
+
+The implemented application-layer orchestrator shares one 60-second deadline
+across Story generation, Topic proposal, all 18 workers, versioned Event commit,
+and ordered ALMA `/appraisal` dispatch. Its deterministic intensity mapping and
+external atomicity boundary are documented in
+[`EMOTION_EVALUATION_PIPELINE.md`](EMOTION_EVALUATION_PIPELINE.md).
+
 The Story should describe what happened without pre-labeling the emotion.
 
 For example, the Story should prefer:

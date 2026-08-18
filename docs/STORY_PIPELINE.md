@@ -100,6 +100,8 @@ be recorded when exact tokenizer behavior is evaluated.
 
 ## Next integration step
 
-Wire `StoryPipeline` into the new structured-appraisal orchestrator. The resulting
-`Story.Text` becomes the immutable input shared by the 18 specialized appraisal
-workers. Do not route it through the legacy floating-point appraisal layer.
+The complete application-layer Story → Topic → 18 Workers → ALMA path is now
+implemented and documented in
+[`EMOTION_EVALUATION_PIPELINE.md`](EMOTION_EVALUATION_PIPELINE.md). It remains
+to mount that orchestrator on the production chat/API path and connect
+post-ALMA reply generation.

@@ -2,9 +2,12 @@ package alma
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/KuangWei-hash/AffectBridge/internal/model"
 )
@@ -21,7 +24,42 @@ type Client struct {
 }
 
 func NewClient(addr string) *Client {
-	return &Client{addr: addr, httpc: http.DefaultClient}
+	return &Client{addr: strings.TrimRight(addr, "/"), httpc: http.DefaultClient}
+}
+
+// SendAppraisal sends one validated Basic tag to ALMA's synchronous REST
+// appraisal endpoint. The caller's context owns the complete request lifetime.
+func (c *Client) SendAppraisal(
+	ctx context.Context,
+	signal model.BasicAppraisalSignal,
+) (model.BasicAppraisalReceipt, error) {
+	body, err := json.Marshal(signal)
+	if err != nil {
+		return model.BasicAppraisalReceipt{}, fmt.Errorf("alma: appraisal encode: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.addr+"/appraisal", bytes.NewReader(body))
+	if err != nil {
+		return model.BasicAppraisalReceipt{}, fmt.Errorf("alma: appraisal request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpc.Do(req)
+	if err != nil {
+		return model.BasicAppraisalReceipt{}, fmt.Errorf("alma: appraisal: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		message, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return model.BasicAppraisalReceipt{}, fmt.Errorf("alma: appraisal: status %d: %s", resp.StatusCode, strings.TrimSpace(string(message)))
+	}
+	var receipt model.BasicAppraisalReceipt
+	if err := json.NewDecoder(resp.Body).Decode(&receipt); err != nil {
+		return model.BasicAppraisalReceipt{}, fmt.Errorf("alma: appraisal decode: %w", err)
+	}
+	if !receipt.Accepted || receipt.Character != signal.Character || receipt.Tag != signal.Tag ||
+		receipt.Elicitor != signal.Elicitor {
+		return model.BasicAppraisalReceipt{}, fmt.Errorf("alma: appraisal acknowledgement does not match request")
+	}
+	return receipt, nil
 }
 
 type applyRequest struct {

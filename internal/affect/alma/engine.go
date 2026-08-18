@@ -29,3 +29,4 @@ func (e *Engine) Snapshot(c model.Character) model.Character {
 
 // Compile-time check that ALMA's Engine satisfies affect.Engine.
 var _ affect.Engine = (*Engine)(nil)
+var _ affect.BasicAppraisalSender = (*Client)(nil)
